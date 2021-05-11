@@ -10,7 +10,8 @@
 
       <div class="game-info">
         <p v-if="stepNumber === 0">
-          Vamos comenzar! Comienza&nbsp;<b :class="currentPlayer">X</b>!
+          Vamos comenzar! Comienza&nbsp;<b :class="currentPlayer">{{ currentPlayer }}</b>! <template v-if="stepNumber===0">
+          - Tu eres {{who}}</template>  
         </p>
         <p v-else-if="!!winner">
           El vencedor es:&nbsp;
@@ -44,18 +45,47 @@ export default {
       currentPlayer: 'X',
       winner: null,
       who: 'X',
-      
+      init : 'X'
     }
+  },
+  created() {
+    this.conectMqtt(null)
+    this.$bus.$on('updateGames',()=>{
+      this.mqtt2.publish('gametest', JSON.stringify({"message":"updateGames"}))
+    })
   },
   methods: {
     conectMqtt(game){
-      
+      if(!game){
+        const mqtt = this.$mqtt()
+        this.mqtt2 = mqtt
+        this.mqtt2.subscribe('gametest', function (err, res) {
+          if (err) {
+            console.log('🚨 Error when subscribing to topic ' + topic + ': ' + err);
+            return;
+          } 
+          else {
+              console.log("subscribed", res)
+          }  
+          
+        })
+        const self = this
+        mqtt.on('message', function (topic, message) {
+          const messageJSON = JSON.parse(message.toString())
+          if(messageJSON.message === 'updateGames'){
+            self.$bus.$emit('updateGamesLocal')
+            return
+          }
+        })
+        return
+      }
+
       const mqtt = this.$mqtt()
       this.mqtt = mqtt
       this.topic = `game/${game.game._id}`
       if(game.who !== 'creator'){
-        this.who = 'O'
-        
+        this.who = 'O' 
+         
         this.$bus.$emit('disable', true)
       }else {
        
@@ -75,8 +105,13 @@ export default {
       mqtt.on('message', function (topic, message) {
         
         const messageJSON = JSON.parse(message.toString())
+        if(messageJSON.message === 'updateGames'){
+          self.$bus.$emit('updateGamesLocal')
+          return
+        }
         if(messageJSON.message === 'restart'){
           self.restart()
+          return
         }
         if(self.who != messageJSON.who){
           if (self.squares[messageJSON.move] || self.winner) return
@@ -110,12 +145,19 @@ export default {
     },
     clickRestart(){
       this.mqtt.publish(this.topic, JSON.stringify({"message":"restart"}))
+      this.init = this.init === 'X' ? 'O' : 'X'
       this.restart()
     },
     restart() {
+      this.init = this.init === 'X' ? 'O' : 'X'
+      this.currentPlayer = this.init
       this.squares = Array(9).fill(null)
       this.stepNumber = 0
-      this.currentPlayer = this.currentPlayer
+      if(this.init === this.who)
+        this.$bus.$emit('disable', false)
+      else
+        this.$bus.$emit('disable', true)
+
       this.winner = null
 
     },

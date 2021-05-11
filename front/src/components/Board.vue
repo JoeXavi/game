@@ -81,6 +81,10 @@ export default {
     this.$bus.$on('disable',(data)=>{
       this.disabled = data
     })
+
+    this.$bus.$on('updateGamesLocal',()=>{
+      this.getGames()
+    })
   },
   computed:{
     
@@ -159,6 +163,7 @@ export default {
         this.mqttConect({game:this.currentGame,who:'creator'})
         this.getGames()
         this.game = true
+        this.$bus.$emit('updateGames')
 
       }catch(e){
         alert(e)
